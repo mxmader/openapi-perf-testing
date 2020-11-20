@@ -1,6 +1,6 @@
 __version__ = "0.1.0"
 
-from perf import api_call_generators, utils
+from perf import utils
 from xml.etree import cElementTree
 
 import numpy
@@ -242,19 +242,19 @@ class ApiPerformance(object):
                                 self.api_calls.append(api_call)
 
         # find all functions defined in the api_call_generators module and execute them
-        for module_item in dir(api_call_generators):
-            module_item_instance = getattr(api_call_generators, module_item)
-            if isinstance(module_item_instance, types.FunctionType):
-                result = module_item_instance()
-                if not result:
-                    self._logger.error('Could not generate API calls using %s() - exiting',
-                                       module_item_instance.__name__)
-                for api_call in result:
-                    if self._should_process_path(api_call['path']):
-                        self.api_calls.append(api_call)
-                    else:
-                        self._logger.debug('skipping path %s from generated API call',
-                                           api_call['path'])
+        # for module_item in dir(api_call_generators):
+        #     module_item_instance = getattr(api_call_generators, module_item)
+        #     if isinstance(module_item_instance, types.FunctionType):
+        #         result = module_item_instance()
+        #         if not result:
+        #             self._logger.error('Could not generate API calls using %s() - exiting',
+        #                                module_item_instance.__name__)
+        #         for api_call in result:
+        #             if self._should_process_path(api_call['path']):
+        #                 self.api_calls.append(api_call)
+        #             else:
+        #                 self._logger.debug('skipping path %s from generated API call',
+        #                                    api_call['path'])
 
         # this buys us free order of operations where "listing" calls are made first,
         # thus single object retrieval has a defined identifier to work with.
