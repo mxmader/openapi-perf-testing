@@ -1,0 +1,17 @@
+{
+    "Average_Threshold_Exceptions": {
+        '/endpoint?with_params=and_values': 'numeric_value_higher_than_others',
+        '/widgets?include_broken=true': 4000
+    },
+    "Average_Threshold_For_List": 6000,
+    "Average_Threshold_For_Object": 1500,
+    "Headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Auth-Refresh-Token": "true",
+        "Authorization": ""
+    }
+    "Number_Of_Passes": 5,
+    "Path_Blacklist": [],
+    "Path_Whitelist": []
+}

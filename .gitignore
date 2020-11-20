@@ -1,0 +1,7 @@
+.idea/
+build/
+dist/
+*.egg-info/
+*.pyc
+perf_config.json
+__pycache__/

@@ -1,0 +1,19 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+perf = {version = "*",path = "./perf",editable = true}
+docopt = "*"
+numpy = "*"
+prettytable = "*"
+requests = "*"
+
+[requires]
+python_version = "3.8"
+
+[scripts]
+test = ""
