@@ -82,6 +82,7 @@ class ApiPerformance(object):
         self.table.align['Description'] = 'l'
 
     def _set_api_url(self):
+        self._logger.info(f"Loading OpenAPI schema from {self.api_spec_url}")
         api_spec_resp = requests.get(self.api_spec_url)
         api_spec_resp.raise_for_status()
         self.api_spec = api_spec_resp.json()
@@ -94,6 +95,7 @@ class ApiPerformance(object):
 
     def _should_process_path(self, path):
         if path in self.path_blacklist:
+            self._logger.warning('%s is in blacklist', path)
             return False
         else:
             if not self.path_whitelist:
@@ -102,6 +104,7 @@ class ApiPerformance(object):
             for whitelist_path in self.path_whitelist:
                 if path.startswith(whitelist_path):
                     return True
+            self._logger.debug('%s is not in specified whitelist', path)
             return False
 
     def add_checkstyle_error(self, error):
@@ -121,125 +124,141 @@ class ApiPerformance(object):
         self.checkfile_tree.write(os.path.join(self.script_dir, '../checkstyle-api-perf.log'))
 
     def build_api_calls(self):
-        self._logger.debug(f"Loading OpenAPI schema from {self.api_spec_url}")
         paths = collections.OrderedDict(sorted(self.api_spec['paths'].items()))
 
         for path, methods in paths.items():
             if not self._should_process_path(path):
-                self._logger.debug('skipping path: %s', path)
+                self._logger.debug('Skipping path: %s', path)
                 continue
 
             for method, method_def in methods.items():
-                if method == 'get':
+                method = method.upper()
+
+                # we only support data retrieval as it typically has the most significant performance
+                # concern or constraint with respect to the author's historical projects
+                if method != 'GET':
+                    continue
+
+                self._logger.debug('Processing definition of endpoint %s %s', method, path)
+
+                if method_def.get('x-skip-perf-test'):
+                    self._logger.warning('%s %s has been marked to skip upstream', method, path)
+                    continue
+
+                # determine query string params supported by this endpoint, if any
+                query_params = []
+                params_index = {}
+                for param in method_def.get('parameters', []):
+                    if param['in'] == 'query':
+                        if param['type'] == 'boolean':
+                            params_index[param['name']] = {
+                                'x-param-conflicts-with': param.get(
+                                    'x-param-conflicts-with', []),
+                                'values': [True]
+                            }
+                        elif 'enum' in param:
+                            params_index[param['name']] = {
+                                'x-param-conflicts-with': param.get(
+                                    'x-param-conflicts-with', []),
+                                'values': param['enum']
+                            }
+
+                # iterate through query string params and build a list of possible parameters
+                if query_params:
+
+                    # get the sorted set of param names (dict keys)
+                    param_names_sorted = sorted(params_index)
+
+                    # compile a list of compatible query parameter sets
+                    param_sets = list()
+
+                    # create sets using each parameter as a "base"
+                    # with which all other applicable parameters could be used.
+                    for param_name in param_names_sorted:
+
+                        # drop any parameters which conflict with the base parameter
+                        # simple logic provided the param is not listed as conflicting
+                        # with itself...
+                        param_set = {param for param in param_names_sorted
+                                     if param not in
+                                     params_index[param_name]['x-param-conflicts-with']}
+
+                        # order the parameter set (transforming to list) for consistency and
+                        # deduplication
+                        param_set = sorted(param_set)
+
+                        # track this parameter set if unique
+                        if param_set not in param_sets:
+                            param_sets.append(param_set)
+
+                    # process the power sets of these parameter sets, yielding a list of all
+                    # possible parameter combinations
+                    self._logger.debug('Building parameter power sets')
+
+                    param_combos = list()
+                    for param_set in param_sets:
+                        for param_combo in utils.get_power_set(param_set):
+                            param_combo = sorted(param_combo)
+                            if param_combo not in param_combos:
+                                self._logger.debug('Adding parameter combo for evaluation: %s', param_combo)
+                                param_combos.append(param_combo)
+
+                    # walk through each param set and eliminate any which contain conflicting
+                    # parameters. this will leave us with the list of valid parameter combos.
+                    self._logger.debug('Building a list of valid parameter combos')
+
+                    valid_param_combos = []
+                    for param_combo in param_combos:
+                        has_conflict = False
+                        for param in param_combo:
+                            for param_to_compare in param_combo:
+                                if (param_to_compare in
+                                        params_index[param]['x-param-conflicts-with']):
+                                    has_conflict = True
+                        if param_combo and not has_conflict:
+                            self._logger.debug('Adding valid parameter combo: %s',
+                                               ','.join(param_combo))
+                            valid_param_combos.append(param_combo)
+
+                    # Finally, add all combinations of values for each combination of
+                    # parameters.
+                    for param_combo in valid_param_combos:
+                        self._logger.debug('Adding calls for param combo: %s', param_combo)
+
+                        # generate the combos of possible values of parameters
+                        param_values_combos = list(itertools.product(
+                            *(params_index[key]['values']
+                              for key in param_combo)))
+
+                        for param_value_combo in param_values_combos:
+
+                            api_call_params = {}
+                            for x, param in enumerate(param_combo):
+                                api_call_params[param] = param_value_combo[x]
+
+                            api_call = {
+                                'path': path,
+                                'method': method,
+                                'params': api_call_params}
+
+                            self._logger.debug('Adding call %s', api_call)
+                            self.api_calls.append(api_call)
+
+                # This endpoint has no parameters, so just add it as-is
+                else:
                     # check if a complementary "single object retrieval path" exists in the API
                     # spec. if so, we'll cache the UUID of the first object retrieved so we have
                     # a reference to work with downrange.
                     single_object_path = path + '/{uuid}'
                     if ('{uuid}' not in path and
-                            path not in self.path_blacklist and
                             single_object_path in paths and
                             'get' in paths[single_object_path]):
                         self.indexable_paths.append(path)
 
-                    # iterate through query string params and build a list of possible parameters
-                    if 'parameters' in method_def:
-
-                        self._logger.debug('Processing definition of endpoint %s %s',
-                                           method.upper(), path)
-                        params_index = {}
-
-                        for param in method_def['parameters']:
-                            if param['in'] == 'query':
-                                if param['type'] == 'boolean':
-                                    params_index[param['name']] = {
-                                        'x-param-conflicts-with': param.get(
-                                            'x-param-conflicts-with', []),
-                                        'values': [True]
-                                    }
-                                elif 'enum' in param:
-                                    params_index[param['name']] = {
-                                        'x-param-conflicts-with': param.get(
-                                            'x-param-conflicts-with', []),
-                                        'values': param['enum']
-                                    }
-
-                        # get the sorted set of param names (dict keys)
-                        param_names_sorted = sorted(params_index)
-
-                        # compile a list of compatible query parameter sets
-                        param_sets = list()
-
-                        # create sets using each parameter as a "base"
-                        # with which all other applicable parameters could be used.
-                        for param_name in param_names_sorted:
-
-                            # drop any parameters which conflict with the base parameter
-                            # simple logic provided the param is not listed as conflicting
-                            # with itself...
-                            param_set = {param for param in param_names_sorted
-                                         if param not in
-                                         params_index[param_name]['x-param-conflicts-with']}
-
-                            # order the parameter set (transforming to list) for consistency and
-                            # deduplication
-                            param_set = sorted(param_set)
-
-                            # track this parameter set if unique
-                            if param_set not in param_sets:
-                                param_sets.append(param_set)
-
-                        # process the power sets of these parameter sets, yielding a list of all
-                        # possible parameter combinations
-                        self._logger.debug('Building parameter power sets')
-
-                        param_combos = list()
-                        for param_set in param_sets:
-                            for param_combo in utils.get_power_set(param_set):
-                                param_combo = sorted(param_combo)
-                                if param_combo not in param_combos:
-                                    self._logger.debug('Adding parameter combo: %s', param_combo)
-                                    param_combos.append(param_combo)
-
-                        # walk through each param set and eliminate any which contain conflicting
-                        # parameters. this will leave us with the list of valid parameter combos.
-                        self._logger.debug('Building a list of valid parameter combos')
-
-                        valid_param_combos = []
-                        for param_combo in param_combos:
-                            has_conflict = False
-                            for param in param_combo:
-                                for param_to_compare in param_combo:
-                                    if (param_to_compare in
-                                            params_index[param]['x-param-conflicts-with']):
-                                        has_conflict = True
-                            if not has_conflict:
-                                self._logger.debug('Adding valid parameter combo: %s',
-                                                   ','.join(param_combo))
-                                valid_param_combos.append(param_combo)
-
-                        # Finally, add all combinations of values for each combination of
-                        # parameters.
-                        for param_combo in valid_param_combos:
-                            self._logger.debug('Adding calls for param combo: %s', param_combo)
-
-                            # generate the combos of possible values of parameters
-                            param_values_combos = list(itertools.product(
-                                *(params_index[key]['values']
-                                  for key in param_combo)))
-
-                            for param_value_combo in param_values_combos:
-
-                                api_call_params = {}
-                                for x, param in enumerate(param_combo):
-                                    api_call_params[param] = param_value_combo[x]
-
-                                api_call = {
-                                    'path': path,
-                                    'method': method.upper(),
-                                    'params': api_call_params}
-
-                                self._logger.debug('Adding call %s', api_call)
-                                self.api_calls.append(api_call)
+                    self.api_calls.append({
+                        'path': path,
+                        'method': method
+                    })
 
         # find all functions defined in the api_call_generators module and execute them
         # for module_item in dir(api_call_generators):
@@ -297,7 +316,7 @@ class ApiPerformance(object):
             # URL before sending it
             api_endpoint = f"{self.api_base_url}{api_call['path']}"
             api_request = requests.Request(api_call['method'], api_endpoint,
-                                           params=api_call['params'], data=api_call_data,
+                                           params=api_call.get('params'), data=api_call_data,
                                            headers=self.session.headers)
             api_prepared_request = api_request.prepare()
 
@@ -358,9 +377,8 @@ class ApiPerformance(object):
                         data = result.json()
 
                         if (x == 0 and api_call['method'] == 'GET' and
-                                api_call['path'] in self.indexable_paths and
-                                not api_call['params']):
-                            result = data.get('result', None)
+                                api_call['path'] in self.indexable_paths):
+                            result = data.get('result')
                             if result and isinstance(result, list) and data['count'] > 0:
                                 object_uuid = data['result'][0]['uuid']
                                 single_object_path = api_call['path'] + '/{uuid}'
