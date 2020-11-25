@@ -44,7 +44,7 @@ Their semantics are documented here:
 
 * `Average_Threshold_Exceptions` - object whose keys are API endpoint paths and query strings with values
 of performance threshold (typically higher than the value of `Average_Threshold_For_*` depending on the
-response structure - list or object) to use specifically for those endpoints/query strings
+response structure - `List` or `Object`) to use specifically for those endpoints/query strings
 * `Average_Threshold_For_List` - integer value used to determine whether an API call for a list is "slow"
 * `Average_Threshold_For_Object` - integer value used to determine whether an API call for an object is "slow"
 * `Headers` - key/value pairs representing HTTP request headers to be used for every API call
