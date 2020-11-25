@@ -148,7 +148,6 @@ class ApiPerformance(object):
                     continue
 
                 # determine query string params supported by this endpoint, if any
-                query_params = []
                 params_index = {}
                 for param in method_def.get('parameters', []):
                     if param['in'] == 'query':
@@ -156,7 +155,7 @@ class ApiPerformance(object):
                             params_index[param['name']] = {
                                 'x-param-conflicts-with': param.get(
                                     'x-param-conflicts-with', []),
-                                'values': [True]
+                                'values': ['false', 'true']
                             }
                         elif 'enum' in param:
                             params_index[param['name']] = {
@@ -166,7 +165,7 @@ class ApiPerformance(object):
                             }
 
                 # iterate through query string params and build a list of possible parameters
-                if query_params:
+                if params_index:
 
                     # get the sorted set of param names (dict keys)
                     param_names_sorted = sorted(params_index)
@@ -248,19 +247,19 @@ class ApiPerformance(object):
 
                 # This endpoint has no parameters, so just add it as-is
                 else:
-                    # check if a complementary "single object retrieval path" exists in the API
-                    # spec. if so, we'll cache the UUID of the first object retrieved so we have
-                    # a reference to work with downrange.
-                    single_object_path = path + '/{uuid}'
-                    if ('{uuid}' not in path and
-                            single_object_path in paths and
-                            'get' in paths[single_object_path]):
-                        self.indexable_paths.append(path)
-
                     self.api_calls.append({
                         'path': path,
                         'method': method
                     })
+
+                # check if a complementary "single object retrieval path" exists in the API
+                # spec. if so, we'll cache the UUID of the first object retrieved so we have
+                # a reference to work with downrange.
+                single_object_path = path + '/{uuid}'
+                if ('{uuid}' not in path and
+                        single_object_path in paths and
+                        'get' in paths[single_object_path]):
+                    self.indexable_paths.append(path)
 
         # find all functions defined in the api_call_generators module and execute them, if any
         generator_module = 'api_call_generators'
