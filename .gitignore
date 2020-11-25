@@ -3,5 +3,6 @@ build/
 dist/
 *.egg-info/
 *.pyc
+api_call_generators.py
 perf_config.json
 __pycache__/

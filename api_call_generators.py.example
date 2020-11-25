@@ -1,0 +1,32 @@
+# API call generator introspection logic will pass over module vars, only caring about execution of all
+# module functions.
+module_var = 'some_value'
+
+
+# each "crafted" API call is expressed as a function which returns sufficient metadata of the API call
+# to subsequently execute it and measure its response time. this allows "front-loading" of any special
+# logic necessary to determine said metadata.
+def get_widgets():
+    return {
+        'description': '',
+        'path': '/v1/widgets',
+        'method': 'GET',
+        'params': {}
+    }
+
+
+def get_broken_widgets():
+    return {
+        'description': '',
+        'path': '/v1/widgets',
+        'method': 'GET',
+        'params': {'broken': True}
+    }
+
+def create_widget():
+    return {
+        'description': '',
+        'path': '/v1/widgets',
+        'method': 'POST',
+        'data': {'name': 'foo', 'broken': True}
+    }

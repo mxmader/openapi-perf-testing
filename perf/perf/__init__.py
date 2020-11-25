@@ -8,11 +8,13 @@ import prettytable
 import requests
 
 import collections
+import importlib
 import itertools
 import logging
 import os
-import types
+import pkgutil
 import urllib.parse
+import types
 
 
 class ApiPerformance(object):
@@ -260,20 +262,24 @@ class ApiPerformance(object):
                         'method': method
                     })
 
-        # find all functions defined in the api_call_generators module and execute them
-        # for module_item in dir(api_call_generators):
-        #     module_item_instance = getattr(api_call_generators, module_item)
-        #     if isinstance(module_item_instance, types.FunctionType):
-        #         result = module_item_instance()
-        #         if not result:
-        #             self._logger.error('Could not generate API calls using %s() - exiting',
-        #                                module_item_instance.__name__)
-        #         for api_call in result:
-        #             if self._should_process_path(api_call['path']):
-        #                 self.api_calls.append(api_call)
-        #             else:
-        #                 self._logger.debug('skipping path %s from generated API call',
-        #                                    api_call['path'])
+        # find all functions defined in the api_call_generators module and execute them, if any
+        generator_module = 'api_call_generators'
+        if pkgutil.find_loader(generator_module):
+            api_call_generators = importlib.import_module(generator_module)
+            for module_item in dir(api_call_generators):
+                module_item_instance = getattr(api_call_generators, module_item)
+                if isinstance(module_item_instance, types.FunctionType):
+                    api_call = module_item_instance()
+                    if not api_call:
+                        self._logger.error('Could not generate API calls using %s.%s()',
+                                           generator_module, module_item_instance.__name__)
+                        self._logger.error('Got: %s', api_call)
+                        continue
+
+                    if self._should_process_path(api_call['path']):
+                        self.api_calls.append(api_call)
+                    else:
+                        self._logger.debug('skipping path %s from generated API call', api_call['path'])
 
         # this buys us free order of operations where "listing" calls are made first,
         # thus single object retrieval has a defined identifier to work with.

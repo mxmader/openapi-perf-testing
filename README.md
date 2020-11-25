@@ -12,7 +12,9 @@ The following items are required for this utility to be of immediate value:
 amount of time it took to compose the response (in units of milliseconds) with or without the `mS`
 unit of measure notation.
 
-Performance is only measured for `GET` requests.
+Currently, only the `GET` method of any API endpoint is automatically tested and measured.
+See the `Extending API call scope` for strategies on other HTTP methods and more complex API calls
+which may not be automatically tested. 
 
 # Configuration
 
@@ -31,7 +33,7 @@ response time.
 * `Path_Whitelist` - list of paths for which API calls shall be made; no nother paths will be used when
 this list is present.
 
-# CLI usage
+# Script usage
 
 ```
 Usage:
@@ -56,3 +58,36 @@ Options:
 
 For development purposes, the utility will attempt to retrieve the OpenAPI spec from
 `http://localhost:8080/api/v1/openapi` if the `--api-spec-url` argument is not specified.
+
+# Extending API call scope
+
+Sometimes you may need additional "pre-processing" logic in order to determine proper values for
+query or path parameters; or, you may want to performance-test API calls with support for POST, PUT, or
+DELETE methods.
+
+To facilitate this, you may create a python module in the root of this project named `api_call_generators`.
+When present, the performance testing logic will import the module and execute every function found therein.
+
+Be sure to `return` a data structure as follows for `GET` requests:
+```python3
+return {
+    'description': '',  # output with `--print` argument to the measurement script
+    'path': '/v1/widgets',
+    'method': 'GET',
+    'params': {'broken': True}
+}
+```
+
+And use the following for `POST` or `PUT` (simply adds the `data` property; you can retain `params` if
+applicable to your use case):
+
+```python3
+return {
+    'description': '',
+    'path': '/v1/widgets',
+    'method': 'POST',  # or 'PUT'
+    'data': {'name': 'foo', 'broken': True}
+}
+```
+
+See `api_call_generators.py.example` for a practical example.
