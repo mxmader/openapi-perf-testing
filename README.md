@@ -1,20 +1,41 @@
 # OpenAPI Performance Testing
 
 This utility is a combination of a CLI and python module intended to introspect a running API based on its
-OpenAPI specification and execute requests against the API.
+OpenAPI specification and empirically measure average response time (calculated server-side) of those calls.
 
 The following items are required for this utility to be of immediate value:
 
-* OpenAPI schema version 2.0
-* Token-based auth with `Authorization` header
-* JSON request and response bodies
+* Your API is documented using the OpenAPI schema version 2.0
+* Your endpoints use token-based auth with `Authorization` header
+* Your API supports JSON request and response bodies
 * Response body JSON object includes the `time` property which specifies the server-side calculated
 amount of time it took to compose the response (in units of milliseconds) with or without the `mS`
-unit of measure notation.
+unit of measure notation (suffix).
+
+
+# Automation
 
 Currently, only the `GET` method of any API endpoint is automatically tested and measured.
 See the `Extending API call scope` for strategies on other HTTP methods and more complex API calls
 which may not be automatically tested. 
+
+The utility has some basic methodologies of automatically constructing API calls with certain types of
+query and path parameters.
+
+Query parameters:
+ * `boolean` type parameters - will test both `true` and `false`
+ * `string` type parameters with `enum` defined - will test all values of the `enum`
+ * Parameters with the `x-param-conflicts-with` property in their schema (which contains a list of
+ mutually exclusive parameter names) will be processed to ensure that no such parameter combinations
+ shall be tested for a given endpoint
+
+Path parameters:
+ * `{uuid}` - will attempt to make a call to the "listing" endpoint (simply removes `/{uuid}` from
+ the given path) and use the value of the `uuid` property of the first object returned in order to
+ populate this value.
+
+Any API call definition (e.g. `GET /v1/users`) with the `x-skip-perf-test` property present and set to
+a value which evaluates in python to be "non-Falsy" will be skipped.
 
 # Configuration
 
