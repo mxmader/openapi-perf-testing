@@ -37,6 +37,16 @@ Path parameters:
 Any API call definition (e.g. `GET /v1/users`) with the `x-skip-perf-test` property present and set to
 a value which evaluates in python to be "non-Falsy" will be skipped.
 
+# Installation
+
+Python script dependencies are provided via pipenv.
+
+```
+git clone git@github.com:mxmader/openapi-perf-testing
+cd openapi-perf-testing
+pipenv install --deploy
+```
+
 # Configuration
 
 See `perf_config.json.example` for the "kitchen sink" of supported configuration variables and examples.
@@ -73,6 +83,13 @@ Options:
                                        inert.
   --html                           Write HTML output file
   --print                          Print results table to stdout
+```
+
+Since we're using pipenv and provided an entry in the `[scripts]` section of `Pipfile`, you may invoke
+this script like so:
+
+```
+pipenv run measure-api-response-time [options]
 ```
 
 # Defaults

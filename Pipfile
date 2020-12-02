@@ -17,3 +17,4 @@ python_version = "3.8"
 
 [scripts]
 test = ""
+measure-api-response-time = "./measure-api-response-time.py"
