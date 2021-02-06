@@ -61,7 +61,7 @@ response structure - `List` or `Object`) to use specifically for those endpoints
 * `Number_Of_Passes` - number of times each API call is to be made for the purposes of computing average
 response time.
 * `Path_Blacklist` - list of paths for which API calls shall not be made / no measurements will be taken
-* `Path_Whitelist` - list of paths for which API calls shall be made; no nother paths will be used when
+* `Path_Whitelist` - list of paths for which API calls shall be made; no other paths will be used when
 this list is present.
 
 # Script usage
